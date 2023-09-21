@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Build.Framework;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WorkingWithAPIs.Data;
 using WorkingWithAPIs.Models;
@@ -9,75 +7,67 @@ using WorkingWithAPIs.Models.ViewModel;
 namespace WorkingWithAPIs.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
-
+    [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
         private readonly WorkingWithAPIsContext _userContext;
 
         public UsersController(WorkingWithAPIsContext userContext)
         {
-            _userContext = userContext;
+            _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         }
 
-        [HttpGet("[Action]/")]
-        public async Task<ActionResult<IEnumerable<UserViewModel>>> GetUsers()
+        /// <summary>
+        /// Gets all users.
+        /// </summary>
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<UserViewModel>>> GetAll()
         {
-            if(_userContext.Users == null)
-            {
-                return NotFound();
-            }
-            var usersList = _userContext.Users.ToList();
-            var allUsersList  = _userContext.MapUsersToView(usersList);
+            var usersList = await _userContext.Users.ToListAsync();
+            var allUsersList = _userContext.MapUsersToView(usersList);
             return allUsersList;
         }
 
-
-        [HttpPost("[Action]/")]
-        public async Task<ActionResult<UsersModel>> SaveUser(UsersModel users)
+        /// <summary>
+        /// Gets a single user by ID.
+        /// </summary>
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<UsersModel>> Get(int id)
         {
-            
-            if (_userContext.Users == null)
+            var user = await _userContext.Users.FindAsync(id);
+            if (user == null)
             {
-                return Problem("Entity set 'UserContext.UserModel' is null.");
+                return NotFound();
             }
-            _userContext.Users.Add(users);
-            await _userContext.SaveChangesAsync();
-
-
-            return CreatedAtAction("GetUsers", new { id = users.Id }, users);
+            return user;
         }
 
-
-        [HttpPost("[Action]/")]
-
-        public async Task<ActionResult<IEnumerable<UserViewModel>>> SaveMultUsers(IEnumerable<UsersModel> usersList)
+        /// <summary>
+        /// Creates a new user.
+        /// </summary>
+        [HttpPost]
+        public async Task<ActionResult<UsersModel>> Create([FromBody] UsersModel user)
         {
-            if (usersList == null || !usersList.Any())
+            if (!ModelState.IsValid)
             {
-                return Problem("No user data provided.");
+                return BadRequest(ModelState);
             }
 
-            if (_userContext.Users == null)
-            {
-                return Problem("Entity set 'UserContext.UserModel' is null.");
-            }
-
-            _userContext.Users.AddRange(usersList);
+            _userContext.Users.Add(user);
             await _userContext.SaveChangesAsync();
 
-            var listOfUsersView = usersList.Select(usersList => new UserViewModel()).ToList();
-
-            return CreatedAtAction("GetUsers", usersList);
+            return CreatedAtAction(nameof(Get), new { id = user.Id }, user);
         }
 
-
-        [HttpPut("[Action]/{id}")]
-        public async Task<IActionResult> UpdateUser(int id, UsersModel user)
+        /// <summary>
+        /// Updates an existing user.
+        /// </summary>
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UsersModel user)
         {
-            if (id != user.Id)
+            if (id != user.Id || !ModelState.IsValid)
             {
-                return BadRequest();
+                return BadRequest(ModelState);
             }
 
             _userContext.Entry(user).State = EntityState.Modified;
@@ -101,29 +91,27 @@ namespace WorkingWithAPIs.Controllers
             return NoContent();
         }
 
-        [HttpDelete("[Action]/{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
+        /// <summary>
+        /// Deletes a user.
+        /// </summary>
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
         {
-            if (_userContext.Users == null)
-            {
-                return NotFound();
-            }
-            var pako = await _userContext.Users.FindAsync(id);
-            if (pako == null)
+            var userToDelete = await _userContext.Users.FindAsync(id);
+            if (userToDelete == null)
             {
                 return NotFound();
             }
 
-            _userContext.Users.Remove(pako);
+            _userContext.Users.Remove(userToDelete);
             await _userContext.SaveChangesAsync();
 
             return NoContent();
         }
 
-
         private bool CheckIfUserExists(int id)
         {
-            return _userContext.Users?.Any(e => e.Id == id) ?? false;
+            return _userContext.Users.Any(e => e.Id == id);
         }
     }
 }
